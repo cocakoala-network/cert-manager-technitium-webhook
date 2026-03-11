@@ -1,46 +1,59 @@
-# Cert-Manager Technitium Webhook
+# cert-manager-technitium-webhook
 
-## Overview
+A [cert-manager](https://cert-manager.io/) DNS01 webhook solver for [Technitium DNS Server](https://technitium.com/dns/).
 
-The Cert-Manager Technitium Webhook is a DNS01 solver for cert-manager that allows you to request and renew SSL certificates using Technitium DNS Server for domain ownership verification through DNS challenges.
+This webhook enables cert-manager to use Technitium DNS Server for ACME DNS01 challenge validation, allowing automatic TLS certificate issuance and renewal for domains managed by Technitium DNS.
 
 ## Features
 
-- Works with cert-manager to automatically issue certificates
-- Supports Technitium DNS Server for DNS01 challenges
-- Automatic zone detection
-- Configurable TTL for TXT records
+- **DNS01 ACME challenges** via Technitium DNS Server API
+- **Automatic zone detection** — queries Technitium to find the correct zone
+- **Explicit zone configuration** — override auto-detection when needed
+- **Configurable via environment variables** — HTTP timeouts, TLS settings, solver name
+- **TLS skip verify** — supports self-signed certificates on Technitium
+- **Multi-architecture Docker images** — `linux/amd64` and `linux/arm64`
+- **Helm chart** — easy deployment to Kubernetes
 
 ## Installation
 
 ### Prerequisites
 
-- Kubernetes cluster
-- Cert-Manager (v1.0.0+)
-- Technitium DNS Server accessible from the webhook
+- Kubernetes cluster (v1.24+)
+- [cert-manager](https://cert-manager.io/) v1.0.0+
+- Technitium DNS Server accessible from the webhook pod
+- Helm v3
 
 ### Install with Helm
 
 ```bash
-# Add Helm repository
-helm repo add kittizz https://kittizz.github.io/cert-manager-technitium-webhook
+# Add the Helm repository
+helm repo add cocakoala-network https://cocakoala-network.github.io/cert-manager-technitium-webhook
 helm repo update
 
-# Install webhook in the cert-manager namespace
-helm install -n cert-manager cert-manager-technitium-webhook kittizz/cert-manager-technitium-webhook
+# Install the webhook in the cert-manager namespace
+helm install cert-manager-technitium-webhook cocakoala-network/cert-manager-technitium-webhook \
+  --namespace cert-manager \
+  --set groupName=acme.yourdomain.com
+```
+
+### Install from OCI Registry
+
+```bash
+helm install cert-manager-technitium-webhook \
+  oci://ghcr.io/cocakoala-network/cert-manager-technitium-webhook/charts/cert-manager-technitium-webhook \
+  --namespace cert-manager \
+  --set groupName=acme.yourdomain.com
 ```
 
 ## Configuration
 
-### 1. Create API Token in Technitium DNS Server
+### Step 1: Create an API Token in Technitium DNS Server
 
-1. Login to your Technitium DNS Server
-2. Go to "Settings" > "API"
+1. Log in to your Technitium DNS Server admin panel
+2. Go to **Settings** → **API**
 3. Create an API Token and save it
 
-### 2. Create Secret for API Token
-
-Create a `secret.yaml` file:
+### Step 2: Create a Kubernetes Secret for the API Token
 
 ```yaml
 apiVersion: v1
@@ -50,124 +63,172 @@ metadata:
   namespace: cert-manager
 type: Opaque
 stringData:
-  api-token: your-technitium-api-token
+  api-token: "your-technitium-api-token-here"
 ```
-
-Apply it:
 
 ```bash
 kubectl apply -f secret.yaml
 ```
 
-### 3. Create ClusterIssuer or Issuer
-
-Create a `cluster-issuer.yaml` file:
+### Step 3: Create a ClusterIssuer
 
 ```yaml
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
-  name: technitium-letsencrypt
-  namespace: cert-manager
+  name: letsencrypt-prod
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
-    # Or use staging server for testing
-    # server: https://acme-staging-v02.api.letsencrypt.org/directory
     email: your-email@example.com
     privateKeySecretRef:
-      name: acme-letsencrypt-key-prod
+      name: letsencrypt-prod-key
     solvers:
-    - dns01:
-        webhook:
-          groupName: acme.xver.cloud
-          solverName: technitium
-          config:
-            serverUrl: https://your-technitium-dns-server
-            authTokenSecretRef:
-              key: api-token
-              name: technitium-api-token
-
+      - dns01:
+          webhook:
+            groupName: acme.yourdomain.com  # Must match Helm value
+            solverName: technitium           # Must match Helm value
+            config:
+              serverUrl: https://your-technitium-dns-server
+              zone: example.com              # Optional: explicit zone override
+              ttl: 60                        # Optional: TXT record TTL (default: 60)
+              authTokenSecretRef:
+                name: technitium-api-token
+                key: api-token
 ```
-
-Apply it:
 
 ```bash
 kubectl apply -f cluster-issuer.yaml
 ```
 
-### 4. Additional Cert-Manager Configuration (Recommended)
-
-If you want cert-manager to use specific nameservers for DNS record verification, you may add the following arguments when installing cert-manager:
-
-```bash
---set 'extraArgs={--dns01-recursive-nameservers-only,--dns01-recursive-nameservers=8.8.8.8:53\,1.1.1.1:53}'
-```
-
-## Usage
-
-### Request a Certificate with Cert-Manager
-
-Create a `certificate.yaml` file:
+### Step 4: Request a Certificate
 
 ```yaml
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: example-com
+  name: my-certificate
   namespace: default
 spec:
-  secretName: example-com-tls
+  secretName: my-certificate-tls
   dnsNames:
-  - example.com
-  - *.example.com
+    - example.com
+    - "*.example.com"
   issuerRef:
-    name: technitium-letsencrypt
+    name: letsencrypt-prod
     kind: ClusterIssuer
 ```
 
-Apply it:
+## Helm Values
 
-```bash
-kubectl apply -f certificate.yaml
-```
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `groupName` | API group name for the webhook solver | `acme.example.com` |
+| `solverName` | Solver name registered with cert-manager | `technitium` |
+| `image.repository` | Container image repository | `ghcr.io/cocakoala-network/cert-manager-technitium-webhook` |
+| `image.tag` | Container image tag | Chart `appVersion` |
+| `image.pullPolicy` | Image pull policy | `IfNotPresent` |
+| `replicaCount` | Number of webhook replicas | `1` |
+| `certManager.namespace` | cert-manager namespace | `cert-manager` |
+| `certManager.serviceAccountName` | cert-manager service account | `cert-manager` |
+| `httpClient.timeout` | HTTP request timeout | `30s` |
+| `httpClient.tlsInsecureSkipVerify` | Skip TLS verification | `false` |
+| `httpClient.maxIdleConns` | Max idle HTTP connections | `10` |
+| `httpClient.idleConnTimeout` | Idle connection timeout | `90s` |
+| `resources` | Pod resource limits/requests | `{}` |
+| `nodeSelector` | Node selector | `{}` |
+| `tolerations` | Tolerations | `[]` |
+| `affinity` | Affinity rules | `{}` |
+| `extraEnv` | Additional environment variables | `[]` |
+
+## Solver Config Parameters
+
+These are set in the ClusterIssuer/Issuer `config` block:
+
+| Parameter | Description | Required | Default |
+|-----------|-------------|----------|---------|
+| `serverUrl` | Technitium DNS Server API URL | **Yes** | — |
+| `authTokenSecretRef.name` | Secret name containing API token | **Yes** | — |
+| `authTokenSecretRef.key` | Key in the Secret | **Yes** | — |
+| `zone` | DNS zone name (overrides auto-detection) | No | Auto-detected |
+| `ttl` | TXT record TTL in seconds | No | `60` |
+
+## Environment Variables
+
+The webhook binary supports the following environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `GROUP_NAME` | API group name (required) | — |
+| `SOLVER_NAME` | Solver name | `technitium` |
+| `HTTP_TIMEOUT` | HTTP client timeout | `30s` |
+| `TLS_INSECURE_SKIP_VERIFY` | Skip TLS verification | `false` |
+| `HTTP_MAX_IDLE_CONNS` | Max idle connections | `10` |
+| `HTTP_IDLE_CONN_TIMEOUT` | Idle connection timeout | `90s` |
+
+## Zone Resolution
+
+The webhook resolves the DNS zone using the following priority:
+
+1. **Explicit zone** from solver config (`config.zone`) — most reliable
+2. **Auto-detection** by querying the Technitium DNS Server API — walks up the domain hierarchy
+3. **Fallback** to cert-manager's `ResolvedZone` — least reliable, may be incorrect for private DNS
+
+> **Important:** For private/split-horizon DNS setups, always set `zone` explicitly in your solver config. cert-manager resolves zones via public DNS, which may return incorrect results for private zones.
 
 ## Troubleshooting
 
 ### Check webhook logs
 
 ```bash
-kubectl logs -n cert-manager -l app=cert-manager-technitium-webhook
+kubectl logs -n cert-manager -l app.kubernetes.io/name=cert-manager-technitium-webhook
 ```
 
-### Check Certificate status
+### Check certificate status
 
 ```bash
-kubectl describe certificate example-com
+kubectl describe certificate <name> -n <namespace>
 ```
 
-### Check Challenge status
+### Check challenge status
 
 ```bash
-kubectl get challenges -n default
-kubectl describe challenge <challenge-name>
+kubectl get challenges --all-namespaces
+kubectl describe challenge <name> -n <namespace>
 ```
 
-## Configuration Parameters
+### Common issues
 
-| Parameter          | Description                              | Default | Required |
-| ------------------ | ---------------------------------------- | ------- | -------- |
-| serverUrl          | Technitium DNS Server URL                | -       | Yes      |
-| authTokenSecretRef | Reference to Secret containing API token | -       | Yes      |
+- **"No such zone was found"** — The zone auto-detection found the wrong zone. Set `zone` explicitly in your solver config.
+- **Connection refused** — Ensure the Technitium DNS Server is accessible from the webhook pod. Check network policies and DNS resolution.
+- **TLS errors** — If using self-signed certificates on Technitium, set `httpClient.tlsInsecureSkipVerify: true` in Helm values.
 
+## Development
 
-## More Information
+### Prerequisites
 
-GitHub: [https://github.com/kittizz/cert-manager-technitium-webhook](https://github.com/kittizz/cert-manager-technitium-webhook)
+- Go 1.24+
+- Docker (for building images)
+- Helm v3 (for chart development)
 
-Documentation: [https://kittizz.github.io/cert-manager-technitium-webhook/](https://kittizz.github.io/cert-manager-technitium-webhook/)
+### Build
 
-## Limitations
+```bash
+go build -o webhook .
+```
 
-- This webhook requires access to the Technitium DNS Server API
-- The API Token must have permissions to add/modify/delete DNS records
+### Test
+
+```bash
+go test -v -race ./...
+```
+
+### Docker
+
+```bash
+docker build -t cert-manager-technitium-webhook:dev .
+```
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE) for details.

@@ -1,44 +1,49 @@
-GO ?= $(shell which go)
-OS ?= $(shell $(GO) env GOOS)
-ARCH ?= $(shell $(GO) env GOARCH)
+.PHONY: build test lint docker clean help
 
-IMAGE_NAME := "kittiza/cert-manager-technitium-webhook"
-IMAGE_TAG := "latest"
+# Build configuration
+GO ?= go
+IMAGE_NAME := ghcr.io/cocakoala-network/cert-manager-technitium-webhook
+IMAGE_TAG := latest
+CHART_DIR := charts/cert-manager-technitium-webhook
 
-OUT := $(shell pwd)/_out
+## help: Show this help message
+help:
+	@echo "Usage: make [target]"
+	@echo ""
+	@echo "Targets:"
+	@sed -n 's/^## //p' $(MAKEFILE_LIST) | column -t -s ':'
 
-KUBEBUILDER_VERSION=1.28.0
-
-HELM_FILES := $(shell find charts/cert-manager-technitium-webhook)
-
-test: _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/etcd _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/kube-apiserver _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/kubectl
-	TEST_ASSET_ETCD=_test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/etcd \
-	TEST_ASSET_KUBE_APISERVER=_test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/kube-apiserver \
-	TEST_ASSET_KUBECTL=_test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/kubectl \
-	$(GO) test -v .
-
-_test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH).tar.gz: | _test
-	curl -fsSL https://go.kubebuilder.io/test-tools/$(KUBEBUILDER_VERSION)/$(OS)/$(ARCH) -o $@
-
-_test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/etcd _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/kube-apiserver _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)/kubectl: _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH).tar.gz | _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH)
-	tar xfO $< kubebuilder/bin/$(notdir $@) > $@ && chmod +x $@
-
-.PHONY: clean
-clean:
-	rm -r _test $(OUT)
-
-.PHONY: build
+## build: Build the webhook binary
 build:
+	CGO_ENABLED=0 $(GO) build -ldflags='-w -s' -trimpath -o webhook .
+
+## test: Run all tests with race detection
+test:
+	$(GO) test -v -race -coverprofile=coverage.out ./...
+
+## lint: Run Go linter (requires golangci-lint)
+lint:
+	golangci-lint run ./...
+
+## docker: Build Docker image
+docker:
 	docker build --platform=linux/amd64 -t "$(IMAGE_NAME):$(IMAGE_TAG)" .
 
-.PHONY: rendered-manifest.yaml
-rendered-manifest.yaml: $(OUT)/rendered-manifest.yaml
+## docker-push: Build and push Docker image
+docker-push: docker
+	docker push "$(IMAGE_NAME):$(IMAGE_TAG)"
 
-$(OUT)/rendered-manifest.yaml: $(HELM_FILES) | $(OUT)
-	helm template --debug --name-template=cert-manager-technitium-webhook \
-            --set image.repository=$(IMAGE_NAME) \
-            --set image.tag=$(IMAGE_TAG) \
-            charts/cert-manager-technitium-webhook > $@
+## helm-template: Render Helm chart templates
+helm-template:
+	helm template cert-manager-technitium-webhook $(CHART_DIR) \
+		--namespace cert-manager \
+		--set groupName=acme.example.com
 
-_test $(OUT) _test/kubebuilder-$(KUBEBUILDER_VERSION)-$(OS)-$(ARCH):
-	mkdir -p $@
+## helm-lint: Lint the Helm chart
+helm-lint:
+	helm lint $(CHART_DIR)
+
+## clean: Remove build artifacts
+clean:
+	rm -f webhook coverage.out
+	rm -rf _out _test
