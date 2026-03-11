@@ -1,0 +1,14 @@
+cert-manager-technitium-webhook has been installed.
+
+To verify the webhook is running:
+  kubectl get pods -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "cert-manager-technitium-webhook.name" . }}
+
+To check the webhook logs:
+  kubectl logs -n {{ .Release.Namespace }} -l app.kubernetes.io/name={{ include "cert-manager-technitium-webhook.name" . }}
+
+Webhook configuration:
+  Group Name:  {{ .Values.groupName }}
+  Solver Name: {{ .Values.solverName }}
+
+For more information, visit:
+  https://github.com/cocakoala-network/cert-manager-technitium-webhook
