@@ -1,24 +1,36 @@
-FROM golang:1.22-alpine3.19 AS build_deps
+# Stage 1: Download dependencies
+FROM golang:1.24-alpine AS deps
 
-RUN apk add --no-cache git
+RUN apk add --no-cache git ca-certificates
 
 WORKDIR /workspace
 
-COPY go.mod .
-COPY go.sum .
-
+COPY go.mod go.sum ./
 RUN go mod download
 
-FROM build_deps AS build
+# Stage 2: Build the binary
+FROM deps AS build
 
 COPY . .
 
-RUN CGO_ENABLED=0 go build -o webhook -ldflags '-w -extldflags "-static"' .
+# Run tests during build to catch issues early
+RUN CGO_ENABLED=0 go test -v ./...
 
-FROM alpine:3.18
+# Build a statically linked binary with optimizations
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags='-w -s -extldflags "-static"' \
+    -trimpath \
+    -o /webhook .
 
-RUN apk add --no-cache ca-certificates
+# Stage 3: Minimal runtime image
+FROM gcr.io/distroless/static-debian12:nonroot
 
-COPY --from=build /workspace/webhook /usr/local/bin/webhook
+LABEL org.opencontainers.image.source="https://github.com/cocakoala-network/cert-manager-technitium-webhook"
+LABEL org.opencontainers.image.description="cert-manager DNS01 webhook solver for Technitium DNS Server"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
+
+COPY --from=build /webhook /usr/local/bin/webhook
+
+USER nonroot:nonroot
 
 ENTRYPOINT ["webhook"]
