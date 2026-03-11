@@ -1,0 +1,28 @@
+apiVersion: v1
+entries:
+  cert-manager-technitium-webhook:
+  - apiVersion: v2
+    appVersion: 1.1.0
+    created: "2026-03-11T22:13:28.631188116Z"
+    description: A cert-manager DNS01 webhook solver for Technitium DNS Server
+    digest: 583237a1cc204ce7194d4e475318a589263dc794d9cea528d3dc7a0caee3ce5a
+    home: https://github.com/cocakoala-network/cert-manager-technitium-webhook
+    keywords:
+    - cert-manager
+    - dns
+    - webhook
+    - technitium
+    - acme
+    - letsencrypt
+    - dns01
+    maintainers:
+    - name: cocakoala-network
+      url: https://github.com/cocakoala-network
+    name: cert-manager-technitium-webhook
+    sources:
+    - https://github.com/cocakoala-network/cert-manager-technitium-webhook
+    type: application
+    urls:
+    - https://github.com/cocakoala-network/cert-manager-technitium-webhook/releases/download/cert-manager-technitium-webhook-1.1.0/cert-manager-technitium-webhook-1.1.0.tgz
+    version: 1.1.0
+generated: "2026-03-11T22:13:28.631205884Z"
