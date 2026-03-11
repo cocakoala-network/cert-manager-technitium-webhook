@@ -1,4 +1,5 @@
 {{/* vim: set filetype=mustache: */}}
+
 {{/*
 Expand the name of the chart.
 */}}
@@ -31,18 +32,50 @@ Create chart name and version as used by the chart label.
 {{- printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{/*
+Common labels
+*/}}
+{{- define "cert-manager-technitium-webhook.labels" -}}
+helm.sh/chart: {{ include "cert-manager-technitium-webhook.chart" . }}
+{{ include "cert-manager-technitium-webhook.selectorLabels" . }}
+{{- if .Chart.AppVersion }}
+app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
+{{- end }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- end -}}
+
+{{/*
+Selector labels
+*/}}
+{{- define "cert-manager-technitium-webhook.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "cert-manager-technitium-webhook.name" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
+{{/*
+Self-signed issuer name
+*/}}
 {{- define "cert-manager-technitium-webhook.selfSignedIssuer" -}}
 {{ printf "%s-selfsign" (include "cert-manager-technitium-webhook.fullname" .) }}
 {{- end -}}
 
+{{/*
+Root CA issuer name
+*/}}
 {{- define "cert-manager-technitium-webhook.rootCAIssuer" -}}
 {{ printf "%s-ca" (include "cert-manager-technitium-webhook.fullname" .) }}
 {{- end -}}
 
+{{/*
+Root CA certificate name
+*/}}
 {{- define "cert-manager-technitium-webhook.rootCACertificate" -}}
 {{ printf "%s-ca" (include "cert-manager-technitium-webhook.fullname" .) }}
 {{- end -}}
 
+{{/*
+Serving certificate name
+*/}}
 {{- define "cert-manager-technitium-webhook.servingCertificate" -}}
 {{ printf "%s-webhook-tls" (include "cert-manager-technitium-webhook.fullname" .) }}
 {{- end -}}

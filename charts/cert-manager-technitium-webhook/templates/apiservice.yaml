@@ -3,10 +3,7 @@ kind: APIService
 metadata:
   name: v1alpha1.{{ .Values.groupName }}
   labels:
-    app: {{ include "cert-manager-technitium-webhook.name" . }}
-    chart: {{ include "cert-manager-technitium-webhook.chart" . }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+    {{- include "cert-manager-technitium-webhook.labels" . | nindent 4 }}
   annotations:
     cert-manager.io/inject-ca-from: "{{ .Release.Namespace }}/{{ include "cert-manager-technitium-webhook.servingCertificate" . }}"
 spec:

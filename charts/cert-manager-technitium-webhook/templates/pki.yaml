@@ -1,76 +1,58 @@
 ---
-# Create a selfsigned Issuer, in order to create a root CA certificate for
-# signing webhook serving certificates
+# Create a self-signed Issuer to generate a root CA certificate for
+# signing webhook serving certificates.
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name: {{ include "cert-manager-technitium-webhook.selfSignedIssuer" . }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    app: {{ include "cert-manager-technitium-webhook.name" . }}
-    chart: {{ include "cert-manager-technitium-webhook.chart" . }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+    {{- include "cert-manager-technitium-webhook.labels" . | nindent 4 }}
 spec:
   selfSigned: {}
-
 ---
-
-# Generate a CA Certificate used to sign certificates for the webhook
+# Generate a CA Certificate used to sign certificates for the webhook.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: {{ include "cert-manager-technitium-webhook.rootCACertificate" . }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    app: {{ include "cert-manager-technitium-webhook.name" . }}
-    chart: {{ include "cert-manager-technitium-webhook.chart" . }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+    {{- include "cert-manager-technitium-webhook.labels" . | nindent 4 }}
 spec:
   secretName: {{ include "cert-manager-technitium-webhook.rootCACertificate" . }}
-  duration: 43800h # 5y
+  duration: 43800h # 5 years
   issuerRef:
     name: {{ include "cert-manager-technitium-webhook.selfSignedIssuer" . }}
   commonName: "ca.cert-manager-technitium-webhook.cert-manager"
   isCA: true
-
 ---
-
-# Create an Issuer that uses the above generated CA certificate to issue certs
+# Create an Issuer that uses the above generated CA certificate to issue certs.
 apiVersion: cert-manager.io/v1
 kind: Issuer
 metadata:
   name: {{ include "cert-manager-technitium-webhook.rootCAIssuer" . }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    app: {{ include "cert-manager-technitium-webhook.name" . }}
-    chart: {{ include "cert-manager-technitium-webhook.chart" . }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+    {{- include "cert-manager-technitium-webhook.labels" . | nindent 4 }}
 spec:
   ca:
     secretName: {{ include "cert-manager-technitium-webhook.rootCACertificate" . }}
-
 ---
-
-# Finally, generate a serving certificate for the webhook to use
+# Generate a serving certificate for the webhook to use.
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: {{ include "cert-manager-technitium-webhook.servingCertificate" . }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    app: {{ include "cert-manager-technitium-webhook.name" . }}
-    chart: {{ include "cert-manager-technitium-webhook.chart" . }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+    {{- include "cert-manager-technitium-webhook.labels" . | nindent 4 }}
 spec:
   secretName: {{ include "cert-manager-technitium-webhook.servingCertificate" . }}
-  duration: 8760h # 1y
+  duration: 8760h # 1 year
   issuerRef:
     name: {{ include "cert-manager-technitium-webhook.rootCAIssuer" . }}
   dnsNames:
-  - {{ include "cert-manager-technitium-webhook.fullname" . }}
-  - {{ include "cert-manager-technitium-webhook.fullname" . }}.{{ .Release.Namespace }}
-  - {{ include "cert-manager-technitium-webhook.fullname" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "cert-manager-technitium-webhook.fullname" . }}
+    - {{ include "cert-manager-technitium-webhook.fullname" . }}.{{ .Release.Namespace }}
+    - {{ include "cert-manager-technitium-webhook.fullname" . }}.{{ .Release.Namespace }}.svc

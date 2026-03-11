@@ -4,10 +4,7 @@ metadata:
   name: {{ include "cert-manager-technitium-webhook.fullname" . }}
   namespace: {{ .Release.Namespace | quote }}
   labels:
-    app: {{ include "cert-manager-technitium-webhook.name" . }}
-    chart: {{ include "cert-manager-technitium-webhook.chart" . }}
-    release: {{ .Release.Name }}
-    heritage: {{ .Release.Service }}
+    {{- include "cert-manager-technitium-webhook.labels" . | nindent 4 }}
 spec:
   type: {{ .Values.service.type }}
   ports:
@@ -16,5 +13,4 @@ spec:
       protocol: TCP
       name: https
   selector:
-    app: {{ include "cert-manager-technitium-webhook.name" . }}
-    release: {{ .Release.Name }}
+    {{- include "cert-manager-technitium-webhook.selectorLabels" . | nindent 4 }}
